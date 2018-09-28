@@ -56,7 +56,9 @@ from decoding import readElementID, readElementSize
 from decoding import readFloat, readInt, readUInt, readDate
 from decoding import readString, readUnicode
 import encoding
-import schemata
+from ebmlite import schemata
+
+
 
 #===============================================================================
 #

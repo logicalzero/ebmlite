@@ -4,7 +4,7 @@ import types
 import unittest
 from StringIO import StringIO
 
-from core import loadSchema, BinaryElement, DateElement, Element, FloatElement, \
+from ebmlite.core import loadSchema, BinaryElement, DateElement, Element, FloatElement, \
         IntegerElement, MasterElement, StringElement, UIntegerElement, \
         UnicodeElement, VoidElement
 
@@ -653,7 +653,7 @@ class testSchema(unittest.TestCase):
             properly run tests.
         """
 
-        import core
+        from ebmlite import core
         core.SCHEMATA = {}
         self.schema = loadSchema('./schemata/mide.xml')
         

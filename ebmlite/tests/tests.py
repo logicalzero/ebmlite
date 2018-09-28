@@ -10,10 +10,9 @@ from xml.etree import ElementTree as ET
 
 sys.path.append('.')
 
-import core
-import util
-        
-        
+from ebmlite import core, util
+
+
 
 class Test(unittest.TestCase):
     """ Integration tests for util.py """

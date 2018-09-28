@@ -1,0 +1,6 @@
+README.md
+setup.py
+ebmlite.egg-info/PKG-INFO
+ebmlite.egg-info/SOURCES.txt
+ebmlite.egg-info/dependency_links.txt
+ebmlite.egg-info/top_level.txt

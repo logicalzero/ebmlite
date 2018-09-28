@@ -21,7 +21,9 @@ import sys
 import tempfile
 from xml.etree import ElementTree as ET
 
-import core, encoding
+from ebmlite import encoding, core
+
+
 
 #===============================================================================
 #
