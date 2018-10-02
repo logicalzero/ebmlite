@@ -1,7 +1,11 @@
+import array
+
 import core
 
-import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except Exception as E:
+    print('To run this example, please install matplotlib')
 
 # Load the IDE file.
 schemaFile = './schemata/mide.xml'
@@ -14,9 +18,8 @@ recProps = ideRoot['RecordingProperties']
 chList = recProps['ChannelList']
 
 # Print the ID and name of each channel.
-print 'Channels:'
-print [[ch['ChannelID'], ch['ChannelName']] for ch in chList['Channel']]
-print
+print('Channels: %s'
+      % str([[ch['ChannelID'], ch['ChannelName']] for ch in chList['Channel']]))
 
 # Define the channel that we'll be working with.
 chId = 8
@@ -25,9 +28,8 @@ chId = 8
 chEl = [ch for ch in chList['Channel'] if ch['ChannelID'] == chId][0]
 
 # Print the ID and name of each subchannel.
-print 'Subchannels:'
-print [[sch['SubChannelID'], sch['SubChannelName']] for sch in chEl['SubChannel']]
-print
+print('Subchannels: %s'
+      % str([[sch['SubChannelID'], sch['SubChannelName']] for sch in chEl['SubChannel']]))
 
 # Define the subchannel that we'll be working with.
 schId = 0
@@ -45,14 +47,17 @@ dataBlocks = [block for block in dataBlocks if block['ChannelIDRef'] == chId]
 rawData = ''
 for block in dataBlocks:
     rawData += block['ChannelDataPayload']
-rawData = np.fromstring(str(rawData), dtype=chEl['ChannelFormat'][1])
-rawData.resize((len(rawData)/3, 3))
+rawArray = array.array(chEl['ChannelFormat'][1])
+rawArray.fromstring(str(rawData))
+xArray = array.array(chEl['ChannelFormat'][1])
+[xArray.append(rawArray[i]) for i in range(0, len(rawArray), 3)]
 
 # Calculate the time stamps of the data.
-times = np.arange(len(rawData))/5000.0
+times = [x/5000.0 for x in range(len(xArray))]
 
 # Plot the raw data from the IDE file.
-h = plt.plot(times, rawData[:, schId])
+plt.figure(1)
+h = plt.plot(times, xArray)
 plt.title('Raw Data')
 plt.show()
 
@@ -61,7 +66,8 @@ chCalId = chEl['ChannelCalibrationIDRef']
 schCalId = chEl['SubChannel'][schId]['SubChannelCalibrationIDRef']
 
 # Create a list of polynomials.
-polys = ideRoot['CalibrationList']['UnivariatePolynomial'] + ideRoot['CalibrationList']['BivariatePolynomial']
+polys  = ideRoot['CalibrationList']['UnivariatePolynomial']
+polys += ideRoot['CalibrationList']['BivariatePolynomial']
 
 # filter the polynomials to whichever affect ch8.0
 polys = [poly for poly in polys if poly['CalID'] in [chCalId, schCalId]]
@@ -71,9 +77,11 @@ polys = [poly for poly in polys if poly['CalID'] in [chCalId, schCalId]]
 # different channel; however, the coefficients simplifies to f(x,y) = x, so we
 # completely ignore it.
 chPoly = polys[0]['PolynomialCoef']
-calData = rawData*chPoly[0] + chPoly[1]
+calData = array.array('d')
+[calData.append(x*chPoly[0] + chPoly[1]) for x in xArray]
 
 # Plot the calibrated data.
-plt.plot(times, calData[:,schId])
+plt.figure(2)
+plt.plot(times, calData)
 plt.title('Calibrated Data')
 plt.show()
