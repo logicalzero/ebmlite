@@ -135,16 +135,16 @@ class Test(unittest.TestCase):
         util.pprint(ebmlDoc, out=open('./tests/IDE-Pretty.txt', 'wt'))
         xmlString = ET.tostring(util.toXml(ebmlDoc))
         prettyXmlFile = open('./tests/IDE-Pretty.xml', 'wt')
-        parseString(xmlString).writexml(prettyXmlFile, \
-                                        addindent='\t', \
-                                        newl='\n', \
+        parseString(xmlString).writexml(prettyXmlFile,
+                                        addindent='\t',
+                                        newl='\n',
                                         encoding='utf-8')
                 
                 
                 
 if __name__ == "__main__":
 
-    testsuite = unittest.TestLoader().discover('..')
+    testsuite = unittest.TestLoader().discover('.')
     unittest.TextTestRunner(verbosity=1).run(testsuite)
 
 
