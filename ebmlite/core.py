@@ -495,6 +495,7 @@ class UnknownElement(BinaryElement):
                  "schema")
     name = "UnknownElement"
     precache = False
+    multiple = True
 
     def __init__(self,
                  stream: Optional[BinaryIO] = None,
@@ -773,23 +774,33 @@ class MasterElement(Element):
                                                 lengthSize=lengthSize,
                                                 infinite=infinite)
 
-    def dump(self) -> Dict[str, Any]:
+    def dump(self, void: bool = True, unknown: bool = True) -> Dict[str, Any]:
         """ Dump this element's value as nested dictionaries, keyed by
             element name. The values of 'multiple' elements return as lists.
             Note: The order of 'multiple' elements relative to other elements
             will be lost; a file containing elements ``A1 B1 A2 B2 A3 B3`` will
             result in``[A1 A2 A3][B1 B2 B3]``.
 
-            :todo: Decide if this should be in the `util` submodule. It is
-                very specific, and it isn't totally necessary for the core
-                library.
+            :param void: If `False`, Void elements will be excluded from the
+                resulting dictionary.
+            :param unknown: If `False`, unknown elements will be excluded from
+                the resulting dictionary.
         """
         result = _Dict()
         for el in self:
-            if el.multiple:
-                result.setdefault(el.name, []).append(el.dump())
+            if not void and isinstance(el, VoidElement):
+                continue
+            if not unknown and isinstance(el, UnknownElement):
+                continue
+            if isinstance(el, MasterElement):
+                val = el.dump(void, unknown)
             else:
-                result[el.name] = el.dump()
+                val = el.dump()
+
+            if el.multiple:
+                result.setdefault(el.name, []).append(val)
+            else:
+                result[el.name] = val
         return result
 
 
