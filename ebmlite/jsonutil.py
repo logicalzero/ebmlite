@@ -1,11 +1,12 @@
 """
 Utilities for serializing EBML to JSON and back.
+These are considered experimental.
 """
 
 import base64
 from datetime import datetime
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from . import core
 
@@ -13,6 +14,75 @@ from . import core
 # ===========================================================================
 #
 # ===========================================================================
+
+def escapedBytearray(value: Union[bytearray, bytes]) -> str:
+    return 'base64:' + str(base64.b64encode(value), 'utf8')
+
+
+def escapedDatetime(value: datetime) -> str:
+    return f'time:{value.timestamp()}'
+
+
+def unescapedBytearray(value: str) -> bytes:
+    if value.startswith('base64:'):
+        value = value[7:]
+    return base64.b64decode(value)
+
+
+def unescapeedDatetime(value: str) -> datetime:
+    if value.startswith('time:'):
+        value = value[5:]
+    return datetime.utcfromtimestamp(float(value))
+
+
+def escapeDict(value: Union[Dict[str, Any], list]):
+    """ Convert `bytearray`/`bytes` and `datetime.datetime` values in a
+        dictionary into strings that can be encoded as JSON.
+    """
+    if isinstance(value, list):
+        iterator = enumerate(value)
+    elif isinstance(value, dict):
+        iterator = value.items()
+    else:
+        raise ValueError(f'cannot iterate {type(value)}')
+
+    for k, v in iterator:
+        if isinstance(v, (bytearray, bytes)):
+            value[k] = escapedBytearray(v)
+        elif isinstance(v, datetime):
+            value[k] = escapedDatetime(v)
+        elif isinstance(v, (list, dict)):
+            escapeDict(v)
+
+
+def unescapeDict(value: Union[Dict[str, Any], list]):
+    """ Convert `bytearray`/`bytes` and `datetime.datetime` values
+        escaped by `escapeDict()` back to their original form.
+    """
+    if isinstance(value, list):
+        iterator = enumerate(value)
+    elif isinstance(value, dict):
+        iterator = value.items()
+    else:
+        raise ValueError(f'cannot iterate {type(value)}')
+
+    for i, v in iterator:
+        if v.startswith('base64:'):
+            value[i] = unescapedBytearray(v)
+        elif v.startswith('time:'):
+            value[i] = unescapeedDatetime(v)
+        elif isinstance(v, (dict, list)):
+            unescapeDict(v)
+
+
+class EscapedJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, datetime):
+            return escapedDatetime(o)
+        elif isinstance(o, (bytes, bytearray)):
+            return escapedBytearray(o)
+        return super().default(o)
+
 
 def json2dict(data: str, schema: core.Schema) -> Dict[str, Any]:
     """ Decode a JSON string of a 'dumped' EBML `Document` into a `dict`,
@@ -27,9 +97,9 @@ def json2dict(data: str, schema: core.Schema) -> Dict[str, Any]:
             date elements.
     """
     bins = ({v.name for v in schema.elements.values() if v.dtype is bytearray},
-            lambda o: base64.b64decode(o[7:]) if o.startswith('base64:') else bytes(o))
+            escapedBytearray)
     dates = ({v.name for v in schema.elements.values() if v.dtype is datetime},
-             lambda o: datetime.utcfromtimestamp(o / 10**6))
+             escapedDatetime)
 
     def hook(o):
         for names, converter in (bins, dates):
@@ -69,12 +139,5 @@ def ebml2json(doc: core.Document,
         :param unknown: If `False`, unknown elements will be excluded from
             the resulting dictionary.
     """
-    class EBMLEncoder(json.JSONEncoder):
-        def default(self, o):
-            if isinstance(o, datetime):
-                return o.timestamp()
-            elif isinstance(o, (bytes, bytearray)):
-                return 'base64:' + str(base64.b64encode(o), 'utf8')
-            return super().default(o)
 
-    return EBMLEncoder().encode(doc.dump(void, unknown))
+    return EscapedJSONEncoder().encode(doc.dump(void, unknown))
