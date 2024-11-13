@@ -491,10 +491,11 @@ class UnknownElement(BinaryElement):
         present in a schema. Unlike other elements, each instance has its own
         ID.
     """
-    __slots__ = ("stream", "offset", "size", "sizeLength", "payloadOffset", "_value", "id",
-                 "schema")
-    name = "UnknownElement"
+    __slots__ = ("stream", "offset", "size", "sizeLength", "payloadOffset",
+                 "_value", "id", "name", "schema")
+
     precache = False
+    multiple = True
 
     def __init__(self,
                  stream: Optional[BinaryIO] = None,
@@ -523,6 +524,8 @@ class UnknownElement(BinaryElement):
                                              payloadOffset)
         self.id = eid
         self.schema = schema
+        self.name = f'UnknownElement_0x{eid:x}'
+
 
     def __eq__(self, other) -> bool:
         """ Equality check. Unknown elements are considered equal if they have
@@ -538,6 +541,45 @@ class UnknownElement(BinaryElement):
         except AttributeError:
             return False
 
+
+    @classmethod
+    def encode(cls,
+               eid: int,
+               value: Union[bytearray, bytes],
+               length: Optional[int] = None,
+               lengthSize: Optional[int] = None,
+               infinite: bool = False) -> bytes:
+        """ Encode an element that does not appear in the schema.
+
+            :param eid: The element's EBML ID. Unknown elements are a
+                special case, as other elements do not have variable
+                IDs.
+            :param value: The value to encode, or a list of values to encode.
+                If a list is provided, each item will be encoded as its own
+                element.
+            :param length: An explicit length for the encoded data,
+                overriding the variable length encoding. For producing
+                byte-aligned structures.
+            :param lengthSize: An explicit length for the encoded element
+                size, overriding the variable length encoding.
+            :param infinite: If `True`, the element will be marked as being
+                'infinite'. Infinite elements are read until an element is
+                encountered that is not defined as a valid child in the
+                schema.
+            :return: A bytearray containing the encoded EBML data.
+        """
+        if infinite and not issubclass(cls, MasterElement):
+            raise ValueError("Only Master elements can have 'infinite' lengths")
+        length = cls.length if length is None else length
+        if isinstance(value, (list, tuple)):
+            result = bytearray()
+            for v in value:
+                result.extend(cls.encode(v, eid=eid, length=length, lengthSize=lengthSize, infinite=infinite))
+            return result
+        payload = cls.encodePayload(value, length=length)
+        length = None if infinite else (length or len(payload))
+        encId = encoding.encodeId(eid)
+        return encId + encoding.encodeSize(length, lengthSize) + payload
 
 # ==============================================================================
 
@@ -727,6 +769,16 @@ class MasterElement(Element):
             raise TypeError("wrong type for %s payload: %s" % (cls.name,
                                                                type(data)))
         for k, v in data:
+            if k.startswith('UnknownElement'):
+                _name, _, eid = k.partition('_')
+                try:
+                    eid = int(eid, 16)
+                    result.extend(UnknownElement.encode(eid, v))
+                    continue
+                except ValueError:
+                    raise ValueError(
+                        'Cannot encode UnknownElements without valid element '
+                        'IDs in the name (e.g., "UnknownElement_0x6110")')
             if k not in cls.schema:
                 raise TypeError("Element type %r not found in schema" % k)
             # TODO: Validation of hierarchy, multiplicity, mandate, etc.
@@ -768,28 +820,38 @@ class MasterElement(Element):
             return result
 
         # TODO: Remove 'infinite' kwarg from `Element.encode()` and handle it
-        # here, since it only applied to Master elements.
+        #  here, since it only applied to Master elements.
         return super(MasterElement, cls).encode(data, length=length,
                                                 lengthSize=lengthSize,
                                                 infinite=infinite)
 
-    def dump(self) -> Dict[str, Any]:
+    def dump(self, void: bool = True, unknown: bool = True) -> Dict[str, Any]:
         """ Dump this element's value as nested dictionaries, keyed by
             element name. The values of 'multiple' elements return as lists.
             Note: The order of 'multiple' elements relative to other elements
             will be lost; a file containing elements ``A1 B1 A2 B2 A3 B3`` will
             result in``[A1 A2 A3][B1 B2 B3]``.
 
-            :todo: Decide if this should be in the `util` submodule. It is
-                very specific, and it isn't totally necessary for the core
-                library.
+            :param void: If `False`, Void elements will be excluded from the
+                resulting dictionary.
+            :param unknown: If `False`, unknown elements will be excluded from
+                the resulting dictionary.
         """
         result = _Dict()
         for el in self:
-            if el.multiple:
-                result.setdefault(el.name, []).append(el.dump())
+            if not void and isinstance(el, VoidElement):
+                continue
+            if not unknown and isinstance(el, UnknownElement):
+                continue
+            if isinstance(el, MasterElement):
+                val = el.dump(void, unknown)
             else:
-                result[el.name] = el.dump()
+                val = el.dump()
+
+            if el.multiple:
+                result.setdefault(el.name, []).append(val)
+            else:
+                result[el.name] = val
         return result
 
 
