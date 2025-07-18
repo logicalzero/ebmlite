@@ -1,40 +1,40 @@
-"""'''
+"""
 EBMLite: A lightweight EBML parsing library. It is designed to crawl through
 EBML files quickly and efficiently, and that's about it.
-
-:todo: Complete EBML encoding. Specifically, make 'master' elements write
-    directly to the stream, rather than build bytearrays, so huge 'master'
-    elements can be handled. It appears that the official spec may prohibit
-    (or at least counter-indicate) multiple root elements. Possible
-    compromise until proper fix: handle root 'master' elements differently
-    than deeper ones, more like the current `Document`.
-:todo: Validation. Enforce the hierarchy defined in each schema.
-:todo: Optimize 'infinite' master elements (i.e `size` is `None`). See notes
-    in `MasterElement` class' method definitions.
-:todo: Improved `MasterElement.__eq__()` method, possibly doing a recursive
-    crawl of both elements and comparing the actual contents, or iterating
-    over chunks of the raw binary data. Current implementation doesn't check
-    element contents, just ID and payload size (for speed).
-:todo: Document-wide caching, for future handling of streamed data. Affects
-    the longer-term streaming to-do (listed below) and optimization of
-    'infinite' elements (listed above).
-:todo: Clean up and standardize usage of the term 'size' versus 'length.'
-:todo: General documentation (more detailed than the README) and examples.
-:todo: Document the best way to load schemata in a PyInstaller executable.
-
-:todo: (longer term) Consider making schema loading automatic based on the EBML
-    DocType, DocTypeVersion, and DocTypeReadVersion. Would mean a refactoring
-    of how schemata are loaded.
-:todo: (longer term) Refactor to support streaming data. This will require
-    modifying the indexing and iterating methods of `Document`. Also affects
-    the document-wide caching to-do item, listed above.
-:todo: (longer term) Support the official Schema definition format. Start by
-    adopting some of the attributes, specifically ``minOccurs`` and
-    ``maxOccurs`` (they serve the function provided by the current
-    ``mandatory`` and ``multiple`` attributes). Add ``range`` later.
-    Eventually, recognize official schemata when loading, like the system
-    currently handles legacy ``python-ebml`` schemata.
 """
+# :todo: Complete EBML encoding. Specifically, make 'master' elements write
+#     directly to the stream, rather than build bytearrays, so huge 'master'
+#     elements can be handled. It appears that the official spec may prohibit
+#     (or at least counter-indicate) multiple root elements. Possible
+#     compromise until proper fix: handle root 'master' elements differently
+#     than deeper ones, more like the current `Document`.
+# :todo: Validation. Enforce the hierarchy defined in each schema.
+# :todo: Optimize 'infinite' master elements (i.e `size` is `None`). See notes
+#     in `MasterElement` class' method definitions.
+# :todo: Improved `MasterElement.__eq__()` method, possibly doing a recursive
+#     crawl of both elements and comparing the actual contents, or iterating
+#     over chunks of the raw binary data. Current implementation doesn't check
+#     element contents, just ID and payload size (for speed).
+# :todo: Document-wide caching, for future handling of streamed data. Affects
+#     the longer-term streaming to-do (listed below) and optimization of
+#     'infinite' elements (listed above).
+# :todo: Clean up and standardize usage of the term 'size' versus 'length.'
+# :todo: General documentation (more detailed than the README) and examples.
+# :todo: Document the best way to load schemata in a PyInstaller executable.
+#
+# :todo: (longer term) Consider making schema loading automatic based on the EBML
+#     DocType, DocTypeVersion, and DocTypeReadVersion. Would mean a refactoring
+#     of how schemata are loaded.
+# :todo: (longer term) Refactor to support streaming data. This will require
+#     modifying the indexing and iterating methods of `Document`. Also affects
+#     the document-wide caching to-do item, listed above.
+# :todo: (longer term) Support the official Schema definition format. Start by
+#     adopting some of the attributes, specifically ``minOccurs`` and
+#     ``maxOccurs`` (they serve the function provided by the current
+#     ``mandatory`` and ``multiple`` attributes). Add ``range`` later.
+#     Eventually, recognize official schemata when loading, like the system
+#     currently handles legacy ``python-ebml`` schemata.
+
 __author__ = "David Randall Stokes, Connor Flanigan"
 __copyright__ = "Copyright 2022, Mide Technology Corporation"
 __credits__ = "David Randall Stokes, Connor Flanigan, Becker Awqatty, Derek Witt"
@@ -47,12 +47,11 @@ __all__ = ['BinaryElement', 'DateElement', 'Document', 'Element',
 from ast import literal_eval
 from datetime import datetime
 import errno
-import importlib
+import importlib.resources as importlib_resources
 from io import BytesIO, StringIO, IOBase
 import os.path
 from pathlib import Path
 import re
-import sys
 import types
 from typing import Any, BinaryIO, Dict, List, Optional, TextIO, Tuple, Union
 from xml.etree import ElementTree as ET
@@ -62,20 +61,6 @@ from .decoding import readFloat, readInt, readUInt, readDate
 from .decoding import readString, readUnicode
 from . import encoding
 from . import schemata
-
-# Dictionaries in Python 3.7+ are explicitly insert-ordered in all
-# implementations. If older, continue to use `collections.OrderedDict`.
-if sys.hexversion < 0x03070000:
-    from collections import OrderedDict as _Dict
-else:
-    _Dict = dict
-
-# Additionally, `importlib.resources.files` is new to 3.9 as well; this is
-# part of a work-around.
-if sys.hexversion < 0x03090000:
-    importlib_resources = None
-else:
-    import importlib.resources as importlib_resources
 
 # ==============================================================================
 #
@@ -837,7 +822,7 @@ class MasterElement(Element):
             :param unknown: If `False`, unknown elements will be excluded from
                 the resulting dictionary.
         """
-        result = _Dict()
+        result = {}
         for el in self:
             if not void and isinstance(el, VoidElement):
                 continue
@@ -886,7 +871,7 @@ class Document(MasterElement):
                 regardless, and stored in the Document's `info` attribute.
         """
         self._ownsStream = False
-        if isinstance(stream, (str, bytes, bytearray)):
+        if isinstance(stream, (str, Path)):
             stream = open(stream, 'rb')
             self._ownsStream = True
 
@@ -1053,7 +1038,7 @@ class Document(MasterElement):
         if 'EBML' not in cls.schema:
             return {}
 
-        headers = _Dict()
+        headers = {}
         for elName, elType in (('EBMLVersion', int),
                                ('EBMLReadVersion', int),
                                ('DocType', str),
@@ -1064,7 +1049,7 @@ class Document(MasterElement):
                 if v is not None:
                     headers[elName] = v
 
-        return _Dict(EBML=headers)
+        return dict(EBML=headers)
 
     @classmethod
     def encode(cls,
@@ -1106,6 +1091,9 @@ class Schema(object):
     """ An EBML schema, mapping element IDs to names and data types. Unlike
         the document and element types, this is not a base class; all schemata
         are actual instances of this class.
+
+        Schema instances are typically created by loading and XML schema file
+        using :func:`loadSchema` or a byte string using :func:`parseSchema`.
 
         :ivar document: The schema's Document subclass.
         :ivar elements: A dictionary mapping element IDs to the schema's
@@ -1170,7 +1158,7 @@ class Schema(object):
         self.source = source
         self.filename = None
 
-        if isinstance(source, (str, bytes, bytearray)):
+        if isinstance(source, (str, Path)):
             self.filename = os.path.realpath(source)
         elif hasattr(source, "name"):
             self.filename = os.path.realpath(source.name)
@@ -1578,19 +1566,10 @@ def _expandSchemaPath(path: Union[str, Path, types.ModuleType],
             path, subdir = m.groups()
             strpath = path
 
-    if importlib_resources:
-        if isinstance(path, types.ModuleType):
-            return importlib_resources.files(path) / subdir / name
-        elif '{' in strpath:
-            return importlib_resources.files(strpath.strip('{} ')) / subdir / name
-    else:
-        # Pre-3.9: Use naive means of finding the module path. Won't work in
-        # some cases (module is a zip, etc.); it's just a fallback. To be
-        # deprecated.
-        if isinstance(path, types.ModuleType):
-            path = os.path.dirname(path.__file__)
-        elif '{' in strpath:
-            path = os.path.dirname(importlib.import_module(strpath.strip('{}')).__file__)
+    if isinstance(path, types.ModuleType):
+        return importlib_resources.files(path) / subdir / name
+    elif '{' in strpath:
+        return importlib_resources.files(strpath.strip('{} ')) / subdir / name
 
     return Path(path) / subdir / name
 
@@ -1632,7 +1611,7 @@ def listSchemata(*paths, absolute: bool = True) -> Dict[str, List[Schema]]:
     return schemata
 
 
-def loadSchema(filename: str,
+def loadSchema(filename: Union[str, Path],
                reload: bool = False,
                paths: Optional[str] = None,
                **kwargs) -> Schema:
