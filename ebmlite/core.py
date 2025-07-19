@@ -526,7 +526,7 @@ class UnknownElement(BinaryElement):
         except AttributeError:
             return False
 
-
+    # noinspection PyMethodOverriding
     @classmethod
     def encode(cls,
                eid: int,
@@ -548,19 +548,21 @@ class UnknownElement(BinaryElement):
             :param lengthSize: An explicit length for the encoded element
                 size, overriding the variable length encoding.
             :param infinite: If `True`, the element will be marked as being
-                'infinite'. Infinite elements are read until an element is
-                encountered that is not defined as a valid child in the
-                schema.
+                'infinite'. Not applicable to `UnknownElement`.
             :return: A bytearray containing the encoded EBML data.
         """
-        if infinite and not issubclass(cls, MasterElement):
+        if infinite:
             raise ValueError("Only Master elements can have 'infinite' lengths")
+
         length = cls.length if length is None else length
         if isinstance(value, (list, tuple)):
             result = bytearray()
             for v in value:
-                result.extend(cls.encode(v, eid=eid, length=length, lengthSize=lengthSize, infinite=infinite))
+                result.extend(cls.encode(eid, v,
+                                         length=length, lengthSize=lengthSize,
+                                         infinite=infinite))
             return result
+
         payload = cls.encodePayload(value, length=length)
         length = None if infinite else (length or len(payload))
         encId = encoding.encodeId(eid)
@@ -754,26 +756,30 @@ class MasterElement(Element):
             raise TypeError("wrong type for %s payload: %s" % (cls.name,
                                                                type(data)))
         for k, v in data:
-            if k.startswith('UnknownElement'):
-                _name, _, eid = k.partition('_')
-                try:
-                    eid = int(eid, 16)
-                    result.extend(UnknownElement.encode(eid, v))
-                    continue
-                except ValueError:
-                    raise ValueError(
-                        'Cannot encode UnknownElements without valid element '
-                        'IDs in the name (e.g., "UnknownElement_0x6110")')
-            if k not in cls.schema:
-                raise TypeError("Element type %r not found in schema" % k)
-            # TODO: Validation of hierarchy, multiplicity, mandate, etc.
-            result.extend(cls.schema[k].encode(v))
+            if k in cls.schema:
+                # TODO: Validation of hierarchy, multiplicity, mandate, etc.
+                result.extend(cls.schema[k].encode(v))
+            else:
+                if isinstance(k, str) and k.startswith('UnknownElement'):
+                    _name, _, eid = k.partition('_')
+                    try:
+                        eid = int(eid, 16)
+                    except ValueError:
+                        raise ValueError(
+                            'Cannot encode UnknownElements without valid element '
+                            'IDs in the name (e.g., "UnknownElement_0x6110")')
+                elif isinstance(k, int):
+                    eid = k
+                else:
+                    raise TypeError("Element type %r not found in schema" % k)
+
+                result.extend(UnknownElement.encode(eid, v))
 
         return result
 
     @classmethod
     def encode(cls, 
-               data: Union[Dict[str, Any], List[Tuple[str, Any]]], 
+               data: Union[Dict[str, Any], List[Tuple[str, Any]], Tuple[str, Any]],
                length: Optional[int] = None,
                lengthSize: Optional[int] = None,
                infinite: bool = False) -> bytes:
@@ -850,7 +856,8 @@ class Document(MasterElement):
         Loading a `Schema` generates a subclass.
     """
 
-    def __init__(self, 
+    # noinspection PyMissingConstructor
+    def __init__(self,
                  stream: BinaryIO, 
                  name: Optional[str] = None, 
                  size: Optional[int] = None, 
@@ -1051,6 +1058,7 @@ class Document(MasterElement):
 
         return dict(EBML=headers)
 
+    # noinspection PyMethodOverriding
     @classmethod
     def encode(cls,
                stream: BinaryIO,
@@ -1067,7 +1075,7 @@ class Document(MasterElement):
                 element.
             :return: A bytearray containing the encoded EBML binary.
         """
-        if headers is True:
+        if headers:
             stream.write(cls.encodePayload(cls._createHeaders()))
 
         if isinstance(data, list):
@@ -1197,8 +1205,8 @@ class Schema(object):
         self.name = name or self.type
 
         # Create the schema's Document subclass.
-        self.document = type('%sDocument' % self.name.title(), (Document,),
-                             {'schema': self, 'children': self.children})
+        self.document: Document = type('%sDocument' % self.name.title(), (Document,),
+                                       {'schema': self, 'children': self.children})
 
     def _parseLegacySchema(self, schema):
         """ Parse a legacy python-ebml schema XML file.

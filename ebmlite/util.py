@@ -19,7 +19,6 @@ __all__ = ['createID', 'validateID', 'toXml', 'xml2ebml', 'loadXml', 'pprint',
 
 import ast
 from io import BytesIO
-import pathlib
 import struct
 import sys
 import tempfile
@@ -465,7 +464,7 @@ def pprint(el: core.Element,
                         out.write(" <{}>".format(binary_codec.NAME))
                         binary_codec.encode(el.value, offset=el.offset, indent=indent, stream=out)
                 else:
-                    out.write(" %r" % (el.value))
+                    out.write(" %r" % el.value)
             out.write("\n")
 
     out.flush()
@@ -508,9 +507,9 @@ def printSchemata(paths: Optional[List[Union[str, Path]]] = None,
             out.close()
 
 
-#===============================================================================
+# ===========================================================================
 #
-#===============================================================================
+# ===========================================================================
 
 
 def flatiter(element, depth=None):
