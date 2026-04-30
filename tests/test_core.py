@@ -491,20 +491,21 @@ class testMasterElements(unittest.TestCase):
         """
         self.mockStream = BytesIO(b'\x1A\x45\xDF\xA3\x84\x42\x86\x81\x10')
 
-        self.element = schema.elements[0x1A45DFA3](stream=self.mockStream,
-                                                   offset=0,
-                                                   size=4,
-                                                   payloadOffset=5)
-
+        self.element: Element = schema.elements[0x1A45DFA3](
+            stream=self.mockStream,
+            offset=0,
+            size=4,
+            payloadOffset=5)
 
 
     def testParse(self):
         """ Test parsing MasterElements. """
 
         eclass1 = type('MasterEl1Element', (MasterElement,),
-                      {'id':0x1A45DFA3, 'name': 'MasterEl1',
-                       'schema':self.element.schema,
-                       '__slots__': MasterElement.__slots__})
+                       {'id': 0x1A45DFA3,
+                        'name': 'MasterEl1',
+                        'schema': self.element.schema,
+                        '__slots__': MasterElement.__slots__})
 
         masterEl = eclass1(self.mockStream, offset=0, size=4, payloadOffset=5)
         self.assertEqual(masterEl, self.element)

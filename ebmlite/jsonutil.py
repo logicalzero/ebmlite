@@ -1,14 +1,20 @@
 """
-Utilities for serializing EBML to JSON and back.
+Utilities for serializing EBML to JSON and back. Data types that cannot be
+automatically serialized as JSON are converted into string forms that can,
+with a prefix to indicate the encoding.
+
 These are considered experimental.
 """
 
 import base64
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from typing import Any, Dict, Union
 
-from . import core
+from ebmlite import core
+
+
+__all__ = ("ebml2json", "json2ebml")
 
 
 # ===========================================================================
@@ -16,23 +22,31 @@ from . import core
 # ===========================================================================
 
 def escapedBytearray(value: Union[bytearray, bytes]) -> str:
+    """ Utility function to convert binary data into JSON serializable strings.
+    """
     return 'base64:' + str(base64.b64encode(value), 'utf8')
 
 
 def escapedDatetime(value: datetime) -> str:
+    """ Utility function to convert `datetime` objects into a JSON
+        serializable form.
+    """
     return f'time:{value.timestamp()}'
 
 
 def unescapedBytearray(value: str) -> bytes:
+    """ Utility function to deserialize serialized binary. """
     if value.startswith('base64:'):
         value = value[7:]
     return base64.b64decode(value)
 
 
-def unescapeedDatetime(value: str) -> datetime:
+def unescapedDatetime(value: str) -> datetime:
+    """ Utility function to deserialize serialized `datetime` objects.
+    """
     if value.startswith('time:'):
         value = value[5:]
-    return datetime.utcfromtimestamp(float(value))
+    return datetime.fromtimestamp(float(value), tz=timezone.utc)
 
 
 def escapeDict(value: Union[Dict[str, Any], list]):
@@ -70,12 +84,15 @@ def unescapeDict(value: Union[Dict[str, Any], list]):
         if v.startswith('base64:'):
             value[i] = unescapedBytearray(v)
         elif v.startswith('time:'):
-            value[i] = unescapeedDatetime(v)
+            value[i] = unescapedDatetime(v)
         elif isinstance(v, (dict, list)):
             unescapeDict(v)
 
 
 class EscapedJSONEncoder(json.JSONEncoder):
+    """ JSON encoder that converts `bytes`, `bytearray`, and `datetime`
+        objects into serializable strings.
+    """
     def default(self, o):
         if isinstance(o, datetime):
             return escapedDatetime(o)
@@ -97,9 +114,9 @@ def json2dict(data: str, schema: core.Schema) -> Dict[str, Any]:
             date elements.
     """
     bins = ({v.name for v in schema.elements.values() if v.dtype is bytearray},
-            escapedBytearray)
+            unescapedBytearray)
     dates = ({v.name for v in schema.elements.values() if v.dtype is datetime},
-             escapedDatetime)
+             unescapedDatetime)
 
     def hook(o):
         for names, converter in (bins, dates):
@@ -114,14 +131,16 @@ def json2dict(data: str, schema: core.Schema) -> Dict[str, Any]:
     return json.loads(data, object_hook=hook)
 
 
-def json2ebml(data: str, schema: core.Schema) -> core.Document:
+def json2ebml(data: str, schema: core.Schema, headers: bool=False) -> core.Document:
     """ Decode a JSON string 'dumped' `ebmlite.Document` back into a
         `ebmlite.Document`.
 
         :param data: The encoded JSON string.
         :param schema: The schema of the resulting `ebmlite.Document`.
+        :param headers: If `True`, include the standard ``EBML`` header
+            element.
     """
-    return schema.loads(schema.encodes(json2dict(data, schema)))
+    return schema.loads(schema.encodes(json2dict(data, schema), headers=headers))
 
 
 def ebml2json(doc: core.Document,

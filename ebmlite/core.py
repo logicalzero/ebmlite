@@ -799,7 +799,8 @@ class Document(MasterElement):
         Loading a `Schema` generates a subclass.
     """
 
-    def __init__(self, 
+    # noinspection PyMissingConstructor
+    def __init__(self,
                  stream: BinaryIO, 
                  name: Optional[str] = None, 
                  size: Optional[int] = None, 
@@ -1000,6 +1001,7 @@ class Document(MasterElement):
 
         return dict(EBML=headers)
 
+    # noinspection PyMethodOverriding
     @classmethod
     def encode(cls,
                stream: BinaryIO,
@@ -1016,7 +1018,7 @@ class Document(MasterElement):
                 element.
             :return: A bytearray containing the encoded EBML binary.
         """
-        if headers is True:
+        if headers:
             stream.write(cls.encodePayload(cls._createHeaders()))
 
         if isinstance(data, list):
@@ -1367,7 +1369,7 @@ class Schema(object):
         return default
 
     def load(self, 
-             fp: BinaryIO, 
+             fp: Union[BinaryIO, str],
              name: Optional[str] = None, 
              headers: bool = False, 
              **kwargs) -> Document:
