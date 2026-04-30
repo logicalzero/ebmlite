@@ -1,4 +1,15 @@
 """
+This module contains code to convert XML-definied EBML schemata
+and their elements to code. There are several reasons a developer
+might want to do this:
+
+    * It is simpler to include in a packaged Python executable
+        (e.g., an application built with PyInstaller).
+    * It avoids parsing an external XML file, which could be
+        unavailable in some environments.
+    * The element classes can be customized, allowing special-case
+        processing, custom data types, and specialized behavior.
+
 
 """
 
@@ -13,8 +24,9 @@ def writeDocstring(docs: str, width: int = 74) -> List[str]:
     use in a class definition.
 
     :param docs: The docstring to render.
-    :param width: Max line with. Note that this will be indented by
-        4 spaces when used by other functions.
+    :param width: Max line with. Note that the docstring will be indented by
+        4 spaces when used in a class/function definition; `width` should
+        generally be reduced to account for this.
     :return: A list of substrings, including opening and closing
         triple-quotes.
     """
@@ -26,7 +38,8 @@ def writeDocstring(docs: str, width: int = 74) -> List[str]:
 
 def cleanName(name: str) -> str:
     """
-    Sanitize (make valid) a string for use as a class name.
+    Sanitize (make valid) a string for use as a class name. Any punctuation
+    or whitespace characters are removed and parts are merged into CamelCase.
 
     :param name: The name to clean (e.g., an element name).
     :return: The valid name.
@@ -43,9 +56,15 @@ def cleanName(name: str) -> str:
 def writeClass(element: Type[Element],
                docs=True) -> str:
     """
-    Render a Python class defintion from an `Element` subclass.
+    Generate a Python class defintion from an :class:`Element` or
+    :class:`Document` subclass.
 
-    :param element: The element class to translate.
+    This function generates only the single class definition, not a
+    full Python module. It requires an import::
+
+        import ebmlite.core
+
+    :param element: The EBML element/document class to translate.
     :param docs: If `True`, include docstrings in the output.
     :return: A string containing the Python class definition.
     """
@@ -71,8 +90,15 @@ def writeSchema(schema: Schema,
                 docs=True):
     """
     Generate the code defining an EBML `Schema` as a Python class.
+    The resulting class will be a subclass of
+    :class:`ebmlite.pythonschema.PythonSchema`.
 
-    :param schema: The loaded `Schema` instance to translate.
+    This function generates only the Schema definition, not a full
+    Python module. It requires an import::
+
+        from eblite.pythonschema import PythonSchema
+
+    :param schema: The loaded :class:`Schema` instance to translate.
     :param docs: If `True`, include docstrings in the output.
     :return: A string containing the Python class definition.
     """
@@ -99,11 +125,11 @@ def writeSchema(schema: Schema,
 
 def generateCode(out: IO, schema: Schema, docs=True):
     """
-    Generate a Python file that explicitly defines given `Schema`
-    and all its subclasses.
+    Generate a complete Python file that explicitly defines given
+    :class:`Schema` and all its subclasses.
 
     :param out: The output stream to which to write the Python code.
-    :param schema: The `Schema` to translate.
+    :param schema: The :class:`Schema` to translate.
     :param docs: If `True`, include docstrings in the output.
     """
     out.write("import ebmlite.core\n\n")

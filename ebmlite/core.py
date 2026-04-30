@@ -53,7 +53,7 @@ import os.path
 from pathlib import Path
 import re
 import types
-from typing import Any, BinaryIO, Dict, List, Optional, TextIO, Tuple, Union
+from typing import Any, BinaryIO, Dict, List, Optional, TextIO, Tuple, Type, Union
 from xml.etree import ElementTree as ET
 
 from .decoding import readElementID, readElementSize
@@ -1473,6 +1473,16 @@ class Schema(object):
             return True
 
         return _crawl(self.loads(data))
+
+
+    def replaceElement(self, etype: Type[Element]):
+        """
+
+        :param etype:
+        :return:
+        """
+        self.elements[etype.id] = etype
+        self.elementsByName[etype.name] = etype
 
 
 # ==============================================================================
