@@ -1,8 +1,6 @@
 import os.path
 
-import pytest
-
-from ebmlite import core, jsonutil, util
+from ebmlite import core, jsonutil
 
 FILENAME = os.path.join(os.path.dirname(__file__), 'SSX46714-doesnot.IDE')
 
@@ -17,4 +15,6 @@ def test_json():
     orig = doc.dump()
     read = deserialized.dump()
 
+    assert deserialized is not doc
+    assert orig is not read
     assert orig == read
